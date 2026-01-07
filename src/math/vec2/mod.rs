@@ -145,6 +145,7 @@ impl Neg for Vec2 {
 }
 
 #[cfg(test)]
+#[path = "tests/vec2_tests.rs"]
 mod vec2_tests;
 
 
