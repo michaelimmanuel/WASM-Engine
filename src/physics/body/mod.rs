@@ -1,4 +1,3 @@
-pub mod test;// use crate::math::Vec2;
 use crate::math::vec2::Vec2;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -46,3 +45,7 @@ impl Body {
     }
 
 }
+
+#[cfg(test)]
+#[path = "tests/body_tests.rs"]
+mod body_tests;
