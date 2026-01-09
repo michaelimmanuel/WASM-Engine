@@ -1,8 +1,9 @@
+use crate::math::vec2::Vec2;
 use crate::physics::world::World;
 
 #[test]
 fn test_world_creation() {
-    let world = World::new();
+    let mut world = World::new();
     assert_eq!(world.bodies_count(), 0);
 }
 

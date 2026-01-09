@@ -1,42 +1,48 @@
+use wasm_bindgen::prelude::*;
 use crate::math::vec2::Vec2;
 use crate::physics::body::Body;
 
+#[wasm_bindgen]
 pub struct World {
     bodies: Vec<Body>,
 }
 
+#[wasm_bindgen]
 impl World {
-    pub fn new() -> Self {
-        Self {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> World {
+        World {
             bodies: Vec::new(),
         }
     }
 
-    pub fn add_body(&mut self, body: Body) {
-        self.bodies.push(body);
-    }
-
-    pub fn create_body(&mut self, mass: f32, position: Vec2) -> usize {
+    #[wasm_bindgen]
+    pub fn create_body(&mut self, mass: f32, x: f32, y: f32) -> usize {
+        let position = Vec2::new(x, y);
         let body = Body::new(mass, position);
         let index = self.bodies.len();
         self.bodies.push(body);
         index
     }
 
-    pub fn get_body(&self, index: usize) -> Option<&Body> {
-        self.bodies.get(index)
+    #[wasm_bindgen]
+    pub fn get_body_position_x(&self, index: usize) -> f32 {
+        self.bodies.get(index).map(|body| body.position.x).unwrap_or(0.0)
     }
 
-    pub fn get_body_mut(&mut self, index: usize) -> Option<&mut Body> {
-        self.bodies.get_mut(index)
+    #[wasm_bindgen]
+    pub fn get_body_position_y(&self, index: usize) -> f32 {
+        self.bodies.get(index).map(|body| body.position.y).unwrap_or(0.0)
     }
 
+    #[wasm_bindgen]
     pub fn step(&mut self, dt: f32) {
         for body in &mut self.bodies {
             body.integrate(dt);
         }
     }
 
+    #[wasm_bindgen]
     pub fn bodies_count(&self) -> usize {
         self.bodies.len()
     }
