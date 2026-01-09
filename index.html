@@ -2,9 +2,36 @@
 <html>
 <head>
     <title>WASM Physics Engine Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f0f0f0;
+        }
+        canvas {
+            border: 2px solid #333;
+            background: #ffffff;
+            display: block;
+            margin: 20px 0;
+        }
+        .controls {
+            margin: 10px 0;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 0 5px;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
     <h1>Physics Engine Demo</h1>
+    <div class="controls">
+        <button id="reset">Reset</button>
+        <button id="pause">Pause</button>
+        <span id="status">Running</span>
+    </div>
+    <canvas id="canvas" width="800" height="600"></canvas>
     <div id="output"></div>
 
     <script type="module">
@@ -13,35 +40,89 @@
         async function run() {
             await init();
 
-            // Create a new physics world
-            const world = new World();
-
-            // Create a body with mass 1.0 at position (0, 0)
-            const bodyIndex = world.create_body(1.0, 0.0, 0.0);
-
-            console.log(`Created body at index: ${bodyIndex}`);
-            console.log(`Total bodies: ${world.bodies_count()}`);
-
-            // Get initial position
-            let x = world.get_body_position_x(bodyIndex);
-            let y = world.get_body_position_y(bodyIndex);
-            console.log(`Initial position: (${x}, ${y})`);
-
-            // Step the simulation for 1 second
-            world.step(1.0);
-
-            // Get new position (should have fallen due to gravity)
-            x = world.get_body_position_x(bodyIndex);
-            y = world.get_body_position_y(bodyIndex);
-            console.log(`After 1 second: (${x}, ${y})`);
-
-            // Update the HTML output
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
             const output = document.getElementById('output');
-            output.innerHTML = `
-                <p>Initial position: (0, 0)</p>
-                <p>After 1 second with gravity: (${x.toFixed(2)}, ${y.toFixed(2)})</p>
-                <p>The body has fallen due to gravity (9.81 m/s²)!</p>
-            `;
+            const status = document.getElementById('status');
+            const resetBtn = document.getElementById('reset');
+            const pauseBtn = document.getElementById('pause');
+
+
+            let world = new World();
+            let bodyIndex = world.create_body(1.0, 400.0, 50.0); 
+
+
+            let isRunning = true;
+            let lastTime = performance.now();
+
+
+            const SCALE = 1.0; 
+            const CIRCLE_RADIUS = 20;
+
+            function draw() {
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+
+                const x = world.get_body_position_x(bodyIndex) * SCALE;
+                const y = world.get_body_position_y(bodyIndex) * SCALE;
+
+
+                ctx.beginPath();
+                ctx.arc(x, y, CIRCLE_RADIUS, 0, 2 * Math.PI);
+                ctx.fillStyle = '#ff6b6b';
+                ctx.fill();
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+
+                ctx.beginPath();
+                ctx.moveTo(0, canvas.height - 50);
+                ctx.lineTo(canvas.width, canvas.height - 50);
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+
+                output.innerHTML = `
+                    <p>Position: (${x.toFixed(1)}, ${y.toFixed(1)})</p>
+                    <p>Gravity: 9.81 m/s² downward</p>
+                `;
+            }
+
+            function animate(currentTime) {
+                if (isRunning) {
+                    const deltaTime = Math.min((currentTime - lastTime) / 1000, 1/60); // Cap at 60 FPS
+                    world.step(deltaTime);
+                    lastTime = currentTime;
+                }
+
+                draw();
+
+                requestAnimationFrame(animate);
+            }
+
+            // Event listeners
+            resetBtn.addEventListener('click', () => {
+                world = new World();
+                bodyIndex = world.create_body(1.0, 400.0, 50.0);
+                lastTime = performance.now();
+                status.textContent = 'Running';
+                isRunning = true;
+                pauseBtn.textContent = 'Pause';
+            });
+
+            pauseBtn.addEventListener('click', () => {
+                isRunning = !isRunning;
+                status.textContent = isRunning ? 'Running' : 'Paused';
+                pauseBtn.textContent = isRunning ? 'Pause' : 'Resume';
+                if (isRunning) {
+                    lastTime = performance.now();
+                }
+            });
+
+            requestAnimationFrame(animate);
         }
 
         run();
