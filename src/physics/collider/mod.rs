@@ -1,3 +1,3 @@
-pub trait Collider {
-    fn radius ( &self ) -> f32;
-}
+pub mod shape;
+
+pub use shape::Shape;

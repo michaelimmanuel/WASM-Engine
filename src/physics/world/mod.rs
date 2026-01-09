@@ -1,8 +1,7 @@
 use wasm_bindgen::prelude::*;
 use crate::math::vec2::Vec2;
 use crate::physics::body::Body;
-use std::sync::Arc;
-use crate::physics::circle::Circle;
+use crate::physics::collider::Shape;
 
 #[wasm_bindgen]
 pub struct World {
@@ -21,8 +20,8 @@ impl World {
     #[wasm_bindgen]
     pub fn create_body(&mut self, mass: f32, x: f32, y: f32) -> usize {
         let position = Vec2::new(x, y);
-        let collider = Arc::new(Circle { radius: 1.0 });
-        let body = Body::new(mass, position, collider);
+        let shape = Shape::Circle { radius: 1.0 }; // Default radius
+        let body = Body::new(mass, position, shape);
         let index = self.bodies.len();
         self.bodies.push(body);
         index
