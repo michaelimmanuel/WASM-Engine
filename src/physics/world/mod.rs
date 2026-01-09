@@ -2,6 +2,7 @@ use wasm_bindgen::prelude::*;
 use crate::math::vec2::Vec2;
 use crate::physics::body::Body;
 use crate::physics::collider::Shape;
+use crate::physics::collision::{overlaps};
 
 #[wasm_bindgen]
 pub struct World {
@@ -41,6 +42,28 @@ impl World {
     pub fn step(&mut self, dt: f32) {
         for body in &mut self.bodies {
             body.integrate(dt);
+        }
+
+        let len = self.bodies.len();
+        for i in 0..len {
+            for j in (i + 1)..len {
+                let (left, right) = self.bodies.split_at_mut(j);
+                let a = &left[i];
+                let b = &right[0];
+
+                if overlaps(a,b){
+                    println!("collide")
+                }
+            }
+        }
+    }
+
+    pub fn collides(&self, i: usize, j: usize) -> bool {
+        let a = self.bodies.get(i);
+        let b = self.bodies.get(j);
+        match (a, b) {
+            (Some(a_body), Some(b_body)) => overlaps(a_body, b_body),
+            _ => false,
         }
     }
 

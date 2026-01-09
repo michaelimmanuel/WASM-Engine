@@ -32,3 +32,19 @@ fn test_step_simulation() {
     assert!(world.get_body_position_y(index) > 4.0); // Approximate check
     assert!(world.get_body_position_x(index) == 0.0); // X position should remain 0
 }
+
+#[test]
+fn test_collides_true_for_overlapping_circles() {
+    let mut world = World::new();
+    let i = world.create_body(1.0, 0.0, 0.0);
+    let j = world.create_body(1.0, 1.0, 0.0); // distance 1, radii sum 2
+    assert!(world.collides(i, j));
+}
+
+#[test]
+fn test_collides_false_for_separated_circles() {
+    let mut world = World::new();
+    let i = world.create_body(1.0, 0.0, 0.0);
+    let j = world.create_body(1.0, 3.0, 0.0); // distance 3, radii sum 2
+    assert!(!world.collides(i, j));
+}
