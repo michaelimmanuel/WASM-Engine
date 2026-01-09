@@ -57,7 +57,8 @@ impl World {
             }
         }
     }
-
+    
+    #[wasm_bindgen]
     pub fn collides(&self, i: usize, j: usize) -> bool {
         let a = self.bodies.get(i);
         let b = self.bodies.get(j);

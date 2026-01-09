@@ -39,7 +39,7 @@ impl Body {
             return;
         }
 
-        self.apply_force(Self::GRAVITY * self.mass);
+        // self.apply_force(Self::GRAVITY * self.mass);
 
         let acceleration = self.force * self.inv_mass;
         self.velocity = self.velocity + acceleration * dt;
