@@ -1,20 +1,25 @@
-use crate::math::vec2::Vec2;
-
-#[derive(Copy, Clone, Debug, PartialEq)]
+use std::sync::Arc;
+use crate::{
+    math::vec2::Vec2, 
+    physics::collider::Collider
+};
 
 pub struct Body {
+    
     pub mass: f32,
     pub inv_mass: f32,
     pub velocity: Vec2,
     pub position: Vec2,
     pub force: Vec2,
+
+    pub collider : Arc<dyn Collider>
 }
 
 impl Body {
 
     const GRAVITY: Vec2 = Vec2 { x: 0.0, y: 9.81 };
 
-    pub fn new(mass: f32, position: Vec2) -> Self {
+    pub fn new(mass: f32, position: Vec2, collider: Arc<dyn Collider>) -> Self {
         let inv_mass = if mass != 0.0 { 1.0 / mass } else { 0.0 };
         Self {
             mass,
@@ -22,6 +27,7 @@ impl Body {
             velocity: Vec2::new(0.0, 0.0),
             position,
             force: Vec2::new(0.0, 0.0),
+            collider,
         }
     }
 

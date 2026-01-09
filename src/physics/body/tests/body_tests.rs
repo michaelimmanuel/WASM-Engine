@@ -1,4 +1,6 @@
 use crate::math::vec2::Vec2;
+use std::sync::Arc;
+use crate::physics::circle::Circle;
 
 use super::*;
 
@@ -6,7 +8,8 @@ use super::*;
 fn test_body_new() {
     let mass = 2.0;
     let position = Vec2::new(1.0, 2.0);
-    let body = Body::new(mass, position);
+    let collider = Arc::new(Circle { radius: 1.0 });
+    let body = Body::new(mass, position, collider);
 
     assert_eq!(body.mass, mass);
     assert_eq!(body.inv_mass, 0.5);
@@ -19,7 +22,8 @@ fn test_body_new() {
 fn test_body_new_zero_mass() {
     let mass = 0.0;
     let position = Vec2::new(0.0, 0.0);
-    let body = Body::new(mass, position);
+    let collider = Arc::new(Circle { radius: 1.0 });
+    let body = Body::new(mass, position, collider);
 
     assert_eq!(body.mass, 0.0);
     assert_eq!(body.inv_mass, 0.0);
@@ -27,7 +31,8 @@ fn test_body_new_zero_mass() {
 
 #[test]
 fn test_apply_force() {
-    let mut body = Body::new(1.0, Vec2::new(0.0, 0.0));
+    let collider = Arc::new(Circle { radius: 1.0 });
+    let mut body = Body::new(1.0, Vec2::new(0.0, 0.0), collider);
     let force = Vec2::new(3.0, 4.0);
     body.apply_force(force);
 
@@ -41,7 +46,8 @@ fn test_apply_force() {
 
 #[test]
 fn test_integrate_updates_position_and_velocity() {
-    let mut body = Body::new(2.0, Vec2::new(0.0, 0.0));
+    let collider = Arc::new(Circle { radius: 1.0 });
+    let mut body = Body::new(2.0, Vec2::new(0.0, 0.0), collider);
     let dt = 1.0;
     let initial_velocity = Vec2::new(0.0, 0.0);
     body.velocity = initial_velocity;
@@ -66,7 +72,8 @@ fn test_integrate_updates_position_and_velocity() {
 
 #[test]
 fn test_integrate_static_body() {
-    let mut body = Body::new(0.0, Vec2::new(5.0, 5.0));
+    let collider = Arc::new(Circle { radius: 1.0 });
+    let mut body = Body::new(0.0, Vec2::new(5.0, 5.0), collider);
     body.apply_force(Vec2::new(10.0, 10.0));
     body.integrate(1.0);
 
