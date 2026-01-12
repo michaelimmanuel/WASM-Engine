@@ -40,19 +40,22 @@ impl World {
 
     #[wasm_bindgen]
     pub fn step(&mut self, dt: f32) {
+        // Integrate all bodies
         for body in &mut self.bodies {
             body.integrate(dt);
         }
 
+        // Collision detection
         let len = self.bodies.len();
         for i in 0..len {
             for j in (i + 1)..len {
-                let (left, right) = self.bodies.split_at_mut(j);
-                let a = &left[i];
-                let b = &right[0];
+                // Safe indexing without using split_at_mut since we're not mutating
+                let a = &self.bodies[i];
+                let b = &self.bodies[j];
 
-                if overlaps(a,b){
-                    println!("collide")
+                if overlaps(a, b) {
+                    // Collision detected - will implement response in next step
+                    println!("collide between bodies {} and {}", i, j);
                 }
             }
         }
