@@ -12,6 +12,7 @@ pub struct Body {
     pub force: Vec2,
 
     pub shape: Shape,
+    pub gravity_enabled: bool,
 }
 
 impl Body {
@@ -27,6 +28,7 @@ impl Body {
             position,
             force: Vec2::new(0.0, 0.0),
             shape,
+            gravity_enabled: false,
         }
     }
 
@@ -34,12 +36,18 @@ impl Body {
         self.force = self.force + force;
     }
 
+    pub fn set_gravity_enabled(&mut self, enabled: bool) {
+        self.gravity_enabled = enabled;
+    }
+
     pub fn integrate(&mut self, dt: f32) {
         if self.inv_mass == 0.0 {
             return;
         }
 
-        // self.apply_force(Self::GRAVITY * self.mass);
+        if self.gravity_enabled {
+            self.apply_force(Self::GRAVITY * self.mass);
+        }
 
         let acceleration = self.force * self.inv_mass;
         self.velocity = self.velocity + acceleration * dt;

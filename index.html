@@ -1,246 +1,294 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>WASM Physics Engine - Collision Test</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background: #f0f0f0;
-        }
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-        }
-        canvas {
-            border: 2px solid #333;
-            background: #ffffff;
-            display: block;
-            margin: 20px 0;
-        }
-        .controls {
-            margin: 20px 0;
-            padding: 15px;
-            background: #fff;
-            border-radius: 5px;
-        }
-        button {
-            padding: 8px 16px;
-            margin: 5px 5px 5px 0;
-            cursor: pointer;
-            background: #007bff;
-            color: white;
-            border: none;
-            border-radius: 3px;
-        }
-        button:hover {
-            background: #0056b3;
-        }
-        .info {
-            padding: 15px;
-            background: #fff;
-            border-radius: 5px;
-            margin: 10px 0;
-        }
-        .collision-status {
-            font-weight: bold;
-            color: #d9534f;
-        }
-        .no-collision {
-            color: #5cb85c;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WASM Physics Engine · Test Launcher</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap");
+
+    :root {
+      --bg: radial-gradient(circle at 20% 20%, #f0f7ff, #e8ecf5 35%, #dde3ee 70%, #d7dfe9);
+      --card: #ffffff;
+      --text: #1d2735;
+      --muted: #4c566a;
+      --accent: #0d6efd;
+      --accent-2: #12c2e9;
+      --border: #dce3ee;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Space Grotesk", "Futura", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .shell {
+      width: min(1100px, 100%);
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 20px 60px rgba(28, 47, 86, 0.12);
+      padding: 28px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .title {
+      margin: 0;
+      font-size: clamp(1.8rem, 3vw, 2.3rem);
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      line-height: 1.5;
+      max-width: 640px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+      margin: 18px 0 10px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 12px 30px rgba(17, 48, 94, 0.06);
+      transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 36px rgba(17, 48, 94, 0.12);
+      border-color: #c9d4e5;
+    }
+
+    .card h3 {
+      margin: 0;
+      font-size: 1.05rem;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.4;
+      font-size: 0.95rem;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: linear-gradient(120deg, var(--accent), var(--accent-2));
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.8rem;
+      width: fit-content;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    button, .ghost {
+      cursor: pointer;
+      border: none;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      padding: 10px 14px;
+      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, color 120ms ease;
+    }
+
+    button.primary {
+      background: linear-gradient(120deg, var(--accent), var(--accent-2));
+      color: #fff;
+      box-shadow: 0 10px 24px rgba(13, 110, 253, 0.25);
+    }
+
+    button.primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 28px rgba(13, 110, 253, 0.35);
+    }
+
+    .ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px dashed var(--border);
+    }
+
+    .ghost:hover {
+      background: rgba(13, 110, 253, 0.06);
+      border-color: rgba(13, 110, 253, 0.3);
+    }
+
+    .custom {
+      margin-top: 14px;
+      background: var(--card);
+      border: 1px dashed var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      min-width: 200px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      font-size: 0.95rem;
+    }
+
+    footer {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.4;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    @media (max-width: 640px) {
+      .shell { padding: 22px; }
+      header { flex-direction: column; }
+      .actions { width: 100%; }
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Physics Engine - Collision Detection Test</h1>
-        
-        <canvas id="canvas" width="800" height="600"></canvas>
-        
-        <div class="info">
-            <p><strong>How to use:</strong> Drag circles to move them around. Green outline appears when two circles collide.</p>
-            <p><strong>Controls:</strong> Click and drag any circle. Yellow = currently dragged.</p>
-        </div>
-        
-        <div class="controls">
-            <button id="resetBtn">Reset Simulation</button>
-            <button id="pauseBtn">Pause</button>
-            <button id="createBtn">Create Body at (400, 20)</button>
-        </div>
-        
-        <div class="info">
-            <p>Bodies Count: <strong id="bodyCount">0</strong></p>
-            <p>Collision Status: <span id="collisionStatus" class="no-collision">No collisions</span></p>
-            <p>FPS: <strong id="fps">60</strong></p>
-        </div>
-    </div>
-    
-    <script type="module">
-        import init, { World } from "./pkg/wasm_engine.js";
+  <div class="shell">
+    <header>
+      <div>
+        <div class="pill">WASM physics</div>
+        <h1 class="title">Test Launcher</h1>
+        <p class="subtitle">Pick a page to run the engine demo. Use the quick links, or type any other HTML entry point that lives in this directory.</p>
+      </div>
+    </header>
 
-        async function run() {
-            await init();
+    <div class="grid" id="pageList"></div>
 
-            const canvas = document.getElementById('canvas');
-            const ctx = canvas.getContext('2d');
-            const bodyCountEl = document.getElementById('bodyCount');
-            const collisionStatusEl = document.getElementById('collisionStatus');
-            const fpsEl = document.getElementById('fps');
-            const resetBtn = document.getElementById('resetBtn');
-            const pauseBtn = document.getElementById('pauseBtn');
-            const createBtn = document.getElementById('createBtn');
+    <form class="custom" id="customForm">
+      <label for="customPath" style="font-weight:600;">Open another page:</label>
+      <input id="customPath" name="customPath" type="text" placeholder="e.g. collision_test.html" aria-label="Custom HTML path" />
+      <button type="submit" class="primary">Open</button>
+    </form>
 
-            let world = new World();
-            let isRunning = false; // Start paused so user can position bodies
-            let frameCount = 0;
-            let lastTime = performance.now();
-            const CIRCLE_RADIUS = 20;
-            
-            // Track dragging
-            let draggedBodyId = null;
-            let bodyPositions = {}; // Store positions for manual control
+    <footer>
+      <span>Tip: add <strong>?page=collision_test</strong> (or full filename) to the URL for a direct jump.</span>
+      <span id="status"></span>
+    </footer>
+  </div>
 
-            // Initialize with two bodies
-            world.create_body(1.0, 100, 50);   // Body 0: left side
-            world.create_body(1.0, 700, 50);   // Body 1: right side
-            bodyPositions[0] = { x: 100, y: 50 };
-            bodyPositions[1] = { x: 700, y: 50 };
+  <script>
+    const pages = [
+      {
+        label: "Collision playground",
+        file: "web/collision_test.html",
+        blurb: "Drag, drop, and collide circles to verify overlap handling.",
+      },
+      {
+        label: "Gravity drop",
+        file: "web/gravity_test.html",
+        blurb: "Bodies falling under gravity—quick stability sanity check.",
+      }
+    ];
 
-            resetBtn.addEventListener('click', () => {
-                world = new World();
-                world.create_body(1.0, 100, 50);
-                world.create_body(1.0, 700, 50);
-                bodyPositions = { 0: { x: 100, y: 50 }, 1: { x: 700, y: 50 } };
-                draggedBodyId = null;
-                isRunning = false;
-                pauseBtn.textContent = 'Pause';
-            });
+    const list = document.getElementById("pageList");
+    const statusEl = document.getElementById("status");
+    const form = document.getElementById("customForm");
+    const input = document.getElementById("customPath");
 
-            pauseBtn.addEventListener('click', () => {
-                isRunning = !isRunning;
-                pauseBtn.textContent = isRunning ? 'Pause' : 'Resume';
-            });
+    function openPage(file, newTab = false) {
+      if (!file) return;
+      const target = file.endsWith(".html") ? file : `${file}.html`;
+      if (newTab) {
+        window.open(target, "_blank", "noopener,noreferrer");
+      } else {
+        window.location.href = target;
+      }
+    }
 
-            createBtn.addEventListener('click', () => {
-                world.create_body(1.0, 400, 20);
-            });
+    function render() {
+      pages.forEach(({ label, file, blurb }) => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <h3>${label}</h3>
+          <p>${blurb}</p>
+          <div class="actions">
+            <button class="primary" data-file="${file}" data-mode="same">Open</button>
+            <button class="ghost" data-file="${file}" data-mode="new">New tab</button>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
 
-            // Mouse events for dragging bodies
-            canvas.addEventListener('mousedown', (e) => {
-                const rect = canvas.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
-                const bodyCount = world.bodies_count();
-
-                // Check if mouse is over any circle
-                for (let i = 0; i < bodyCount; i++) {
-                    const x = bodyPositions[i]?.x || world.get_body_position_x(i);
-                    const y = bodyPositions[i]?.y || world.get_body_position_y(i);
-                    const dx = mouseX - x;
-                    const dy = mouseY - y;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-
-                    if (dist <= CIRCLE_RADIUS) {
-                        draggedBodyId = i;
-                        break;
-                    }
-                }
-            });
-
-            canvas.addEventListener('mousemove', (e) => {
-                if (draggedBodyId !== null) {
-                    const rect = canvas.getBoundingClientRect();
-                    const mouseX = Math.max(CIRCLE_RADIUS, Math.min(canvas.width - CIRCLE_RADIUS, e.clientX - rect.left));
-                    const mouseY = Math.max(CIRCLE_RADIUS, Math.min(canvas.height - CIRCLE_RADIUS, e.clientY - rect.top));
-                    bodyPositions[draggedBodyId] = { x: mouseX, y: mouseY };
-                }
-            });
-
-            canvas.addEventListener('mouseup', () => {
-                draggedBodyId = null;
-            });
-
-            canvas.addEventListener('mouseleave', () => {
-                draggedBodyId = null;
-            });
-
-            function draw() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
-                if (isRunning) {
-                    world.step(1 / 60);
-                }
-
-                const bodyCount = world.bodies_count();
-                bodyCountEl.textContent = bodyCount;
-
-                // Draw bodies
-                let hasCollision = false;
-                
-                for (let i = 0; i < bodyCount; i++) {
-                    // Use manually set position if available, otherwise use world position
-                    let x = bodyPositions[i]?.x || world.get_body_position_x(i);
-                    let y = bodyPositions[i]?.y || world.get_body_position_y(i);
-                    
-                    let isColliding = false;
-
-                    // Check collisions with other bodies
-                    for (let j = i + 1; j < bodyCount; j++) {
-                        const otherX = bodyPositions[j]?.x || world.get_body_position_x(j);
-                        const otherY = bodyPositions[j]?.y || world.get_body_position_y(j);
-                        const dx = otherX - x;
-                        const dy = otherY - y;
-                        const dist = Math.sqrt(dx * dx + dy * dy);
-                        
-                        if (dist <= CIRCLE_RADIUS * 2) {
-                            isColliding = true;
-                            hasCollision = true;
-                        }
-                    }
-
-                    // Draw circle
-                    ctx.beginPath();
-                    ctx.arc(x, y, CIRCLE_RADIUS, 0, Math.PI * 2);
-                    ctx.fillStyle = draggedBodyId === i ? '#ffd700' : '#ff6b6b';
-                    ctx.fill();
-
-                    // Draw outline - green if colliding
-                    ctx.strokeStyle = isColliding ? '#51cf66' : '#333';
-                    ctx.lineWidth = isColliding ? 3 : 2;
-                    ctx.stroke();
-
-                    // Draw label
-                    ctx.fillStyle = '#000';
-                    ctx.font = 'bold 12px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(`B${i}`, x, y + 4);
-                }
-
-                // Update collision status
-                if (hasCollision) {
-                    collisionStatusEl.textContent = 'Collision Detected!';
-                    collisionStatusEl.className = 'collision-status';
-                } else {
-                    collisionStatusEl.textContent = 'No collisions';
-                    collisionStatusEl.className = 'no-collision';
-                }
-
-                // Update FPS
-                frameCount++;
-                const now = performance.now();
-                if (now - lastTime >= 1000) {
-                    fpsEl.textContent = frameCount;
-                    frameCount = 0;
-                    lastTime = now;
-                }
-
-                requestAnimationFrame(draw);
-            }
-
-            draw();
+    function attachHandlers() {
+      list.addEventListener("click", (e) => {
+        const target = e.target;
+        if (!(target instanceof HTMLElement)) return;
+        const file = target.getAttribute("data-file");
+        const mode = target.getAttribute("data-mode");
+        if (file) {
+          openPage(file, mode === "new");
         }
-        run();
-    </script>
+      });
 
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const value = input.value.trim();
+        if (!value) return;
+        openPage(value, false);
+      });
+    }
+
+    function handleQuery() {
+      const params = new URLSearchParams(window.location.search);
+      const target = params.get("page");
+      if (target) {
+        statusEl.textContent = `Redirecting to ${target}...`;
+        openPage(target, false);
+      }
+    }
+
+    render();
+    attachHandlers();
+    handleQuery();
+  </script>
 </body>
 </html>

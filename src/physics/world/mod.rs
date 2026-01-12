@@ -74,6 +74,13 @@ impl World {
     pub fn bodies_count(&self) -> usize {
         self.bodies.len()
     }
+
+    #[wasm_bindgen]
+    pub fn set_body_gravity(&mut self, index: usize, enabled: bool) {
+        if let Some(body) = self.bodies.get_mut(index) {
+            body.set_gravity_enabled(enabled);
+        }
+    }
 }
 
 #[cfg(test)]

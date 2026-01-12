@@ -29,13 +29,14 @@
     <div class="controls">
         <button id="reset">Reset</button>
         <button id="pause">Pause</button>
+        <button id="toggleGravity">Enable Gravity</button>
         <span id="status">Running</span>
     </div>
     <canvas id="canvas" width="800" height="600"></canvas>
     <div id="output"></div>
 
     <script type="module">
-        import init, { World } from "./pkg/wasm_engine.js";
+        import init, { World } from "../pkg/wasm_engine.js";
 
         async function run() {
             await init();
@@ -46,10 +47,12 @@
             const status = document.getElementById('status');
             const resetBtn = document.getElementById('reset');
             const pauseBtn = document.getElementById('pause');
+            const toggleGravityBtn = document.getElementById('toggleGravity');
 
 
             let world = new World();
             let bodyIndex = world.create_body(1.0, 400.0, 50.0); 
+            let gravityEnabled = false; 
 
 
             let isRunning = true;
@@ -66,6 +69,7 @@
 
                 const x = world.get_body_position_x(bodyIndex) * SCALE;
                 const y = world.get_body_position_y(bodyIndex) * SCALE;
+                
 
 
                 ctx.beginPath();
@@ -87,7 +91,7 @@
 
                 output.innerHTML = `
                     <p>Position: (${x.toFixed(1)}, ${y.toFixed(1)})</p>
-                    <p>Gravity: 9.81 m/s² downward</p>
+                    <p>Gravity: ${gravityEnabled ? 'ON' : 'OFF'}</p>
                 `;
             }
 
@@ -120,6 +124,12 @@
                 if (isRunning) {
                     lastTime = performance.now();
                 }
+            });
+
+            toggleGravityBtn.addEventListener('click', () => {
+                gravityEnabled = !gravityEnabled;
+                world.set_body_gravity(bodyIndex, gravityEnabled);
+                toggleGravityBtn.textContent = gravityEnabled ? 'Disable Gravity' : 'Enable Gravity';
             });
 
             requestAnimationFrame(animate);
