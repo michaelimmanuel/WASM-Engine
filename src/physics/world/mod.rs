@@ -29,6 +29,16 @@ impl World {
     }
 
     #[wasm_bindgen]
+    pub fn create_box(&mut self, mass: f32, x: f32, y: f32, width: f32, height: f32) -> usize {
+        let position = Vec2::new(x, y);
+        let shape = Shape::Box { width, height };
+        let body = Body::new(mass, position, shape);
+        let index = self.bodies.len();
+        self.bodies.push(body);
+        index
+    }
+
+    #[wasm_bindgen]
     pub fn get_body_position_x(&self, index: usize) -> f32 {
         self.bodies.get(index).map(|body| body.position.x).unwrap_or(0.0)
     }
@@ -53,7 +63,10 @@ impl World {
             body.integrate(dt);
         }
 
-        self.resolve_collisions();
+        // Resolve collisions multiple times to prevent clipping
+        for _ in 0..4 {
+            self.resolve_collisions();
+        }
     }
 
     #[wasm_bindgen]
@@ -178,6 +191,35 @@ impl World {
     #[wasm_bindgen]
     pub fn get_body_velocity_y(&self, index: usize) -> f32 {
         self.bodies.get(index).map(|body| body.velocity.y).unwrap_or(0.0)
+    }
+
+    #[wasm_bindgen]
+    pub fn is_body_circle(&self, index: usize) -> bool {
+        self.bodies.get(index).map(|body| {
+            matches!(body.shape, Shape::Circle { .. })
+        }).unwrap_or(false)
+    }
+
+    #[wasm_bindgen]
+    pub fn is_body_box(&self, index: usize) -> bool {
+        self.bodies.get(index).map(|body| {
+            matches!(body.shape, Shape::Box { .. })
+        }).unwrap_or(false)
+    }
+
+    #[wasm_bindgen]
+    pub fn get_body_width(&self, index: usize) -> f32 {
+        self.bodies.get(index).map(|body| body.shape.width()).unwrap_or(0.0)
+    }
+
+    #[wasm_bindgen]
+    pub fn get_body_height(&self, index: usize) -> f32 {
+        self.bodies.get(index).map(|body| body.shape.height()).unwrap_or(0.0)
+    }
+
+    #[wasm_bindgen]
+    pub fn is_body_static(&self, index: usize) -> bool {
+        self.bodies.get(index).map(|body| body.inv_mass == 0.0).unwrap_or(false)
     }
 }
 

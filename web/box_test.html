@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WASM Physics Engine - Box Shapes Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        canvas {
+            border: 2px solid #333;
+            background: #ffffff;
+            display: block;
+            margin: 20px 0;
+        }
+        .controls {
+            margin: 20px 0;
+            padding: 15px;
+            background: #fff;
+            border-radius: 5px;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px 5px 5px 0;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .info {
+            padding: 15px;
+            background: #fff;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Physics Engine - Box Shapes Test</h1>
+        
+        <canvas id="canvas" width="800" height="600"></canvas>
+        
+        <div class="info">
+            <p><strong>Test Cases:</strong></p>
+            <ul>
+                <li>Circle bouncing on floor (box)</li>
+                <li>Boxes stacked on each other</li>
+                <li>Circle vs Box collision</li>
+            </ul>
+        </div>
+        
+        <div class="controls">
+            <button id="resetBtn">Reset</button>
+            <button id="pauseBtn">Resume</button>
+            <button id="toggleShapeBtn">Shape: Circle</button>
+        </div>
+        
+        <div class="info">
+            <p><strong>Click on canvas to drop objects!</strong></p>
+            <p>Bodies Count: <strong id="bodyCount">0</strong></p>
+            <p>FPS: <strong id="fps">60</strong></p>
+        </div>
+    </div>
+    
+    <script type="module">
+        import init, { World } from "../pkg/wasm_engine.js";
+
+        async function run() {
+            await init();
+
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const bodyCountEl = document.getElementById('bodyCount');
+            const fpsEl = document.getElementById('fps');
+            const resetBtn = document.getElementById('resetBtn');
+            const pauseBtn = document.getElementById('pauseBtn');
+            const toggleShapeBtn = document.getElementById('toggleShapeBtn');
+
+            let world = new World();
+            let isRunning = false;
+            let frameCount = 0;
+            let lastTime = performance.now();
+            let createCircle = true; // Toggle between circle and box
+
+            function setupWorld() {
+                world = new World();
+                
+                // Create boundaries (static boxes with mass 0)
+                // Ground - bottom edge
+                const ground = world.create_box(0.0, 400, 590, 800, 20);
+                world.set_body_restitution(ground, 0.3);
+                
+                // Ceiling - top edge
+                const ceiling = world.create_box(0.0, 400, 10, 800, 20);
+                world.set_body_restitution(ceiling, 0.3);
+                
+                // Left wall
+                const leftWall = world.create_box(0.0, 10, 300, 20, 600);
+                world.set_body_restitution(leftWall, 0.3);
+                
+                // Right wall
+                const rightWall = world.create_box(0.0, 790, 300, 20, 600);
+                world.set_body_restitution(rightWall, 0.3);
+                
+                // Optional: Create a platform in the middle for testing
+                const platform = world.create_box(0.0, 400, 400, 200, 20);
+                world.set_body_restitution(platform, 0.5);
+            }
+
+            setupWorld();
+
+            resetBtn.addEventListener('click', () => {
+                setupWorld();
+                isRunning = false;
+                pauseBtn.textContent = 'Resume';
+            });
+
+            pauseBtn.addEventListener('click', () => {
+                isRunning = !isRunning;
+                pauseBtn.textContent = isRunning ? 'Pause' : 'Resume';
+            });
+
+            toggleShapeBtn.addEventListener('click', () => {
+                createCircle = !createCircle;
+                toggleShapeBtn.textContent = createCircle ? 'Shape: Circle' : 'Shape: Box';
+            });
+
+            canvas.addEventListener('click', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                
+                if (createCircle) {
+                    const circle = world.create_body(1.0, mouseX, mouseY);
+                    world.set_body_gravity(circle, true);
+                    world.set_body_restitution(circle, 0.6);
+                } else {
+                    const box = world.create_box(1.0, mouseX, mouseY, 40, 40);
+                    world.set_body_gravity(box, true);
+                    world.set_body_restitution(box, 0.5);
+                }
+            });
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                if (isRunning) {
+                    world.step(1 / 60);
+                }
+
+                const bodyCount = world.bodies_count();
+                bodyCountEl.textContent = bodyCount;
+
+                // Draw all bodies
+                for (let i = 0; i < bodyCount; i++) {
+                    const x = world.get_body_position_x(i);
+                    const y = world.get_body_position_y(i);
+                    const width = world.get_body_width(i);
+                    const height = world.get_body_height(i);
+                    const isCircle = world.is_body_circle(i);
+                    const isBox = world.is_body_box(i);
+                    const isStatic = world.is_body_static(i);
+
+                    if (isCircle) {
+                        const radius = width / 2;
+                        ctx.beginPath();
+                        ctx.arc(x, y, radius, 0, Math.PI * 2);
+                        ctx.fillStyle = isStatic ? '#888888' : '#ff6b6b';
+                        ctx.fill();
+                        ctx.strokeStyle = '#333';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                        
+                        // Draw collision zone gizmo (outer circle)
+                        ctx.beginPath();
+                        ctx.arc(x, y, radius, 0, Math.PI * 2);
+                        ctx.strokeStyle = '#00ff00';
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([5, 5]);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                        
+                        // Draw center dot
+                        ctx.beginPath();
+                        ctx.arc(x, y, 2, 0, Math.PI * 2);
+                        ctx.fillStyle = '#000';
+                        ctx.fill();
+                    } else if (isBox) {
+                        const halfW = width / 2;
+                        const halfH = height / 2;
+                        
+                        ctx.fillStyle = isStatic ? '#666666' : '#4ecdc4';
+                        ctx.fillRect(x - halfW, y - halfH, width, height);
+                        ctx.strokeStyle = '#333';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(x - halfW, y - halfH, width, height);
+                        
+                        // Draw collision zone gizmo (AABB boundary)
+                        ctx.strokeStyle = '#00ff00';
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([5, 5]);
+                        ctx.strokeRect(x - halfW, y - halfH, width, height);
+                        ctx.setLineDash([]);
+                        
+                        // Draw center cross
+                        ctx.strokeStyle = '#000';
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.moveTo(x - 5, y);
+                        ctx.lineTo(x + 5, y);
+                        ctx.moveTo(x, y - 5);
+                        ctx.lineTo(x, y + 5);
+                        ctx.stroke();
+                    }
+                }
+
+                // Update FPS
+                frameCount++;
+                const now = performance.now();
+                if (now - lastTime >= 1000) {
+                    fpsEl.textContent = frameCount;
+                    frameCount = 0;
+                    lastTime = now;
+                }
+
+                requestAnimationFrame(draw);
+            }
+
+            draw();
+        }
+        run();
+    </script>
+
+</body>
+</html>
