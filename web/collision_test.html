@@ -71,6 +71,7 @@
         <div class="info">
             <p>Bodies Count: <strong id="bodyCount">0</strong></p>
             <p>Collision Status: <span id="collisionStatus" class="no-collision">No collisions</span></p>
+            <p>Collision Details: <span id="collisionDetails">-</span></p>
             <p>FPS: <strong id="fps">60</strong></p>
         </div>
     </div>
@@ -85,6 +86,7 @@
             const ctx = canvas.getContext('2d');
             const bodyCountEl = document.getElementById('bodyCount');
             const collisionStatusEl = document.getElementById('collisionStatus');
+            const collisionDetailsEl = document.getElementById('collisionDetails');
             const fpsEl = document.getElementById('fps');
             const resetBtn = document.getElementById('resetBtn');
             const pauseBtn = document.getElementById('pauseBtn');
@@ -95,10 +97,13 @@
             let frameCount = 0;
             let lastTime = performance.now();
             const CIRCLE_RADIUS = 20;
+            const THROW_DAMPING = 0.3; // Reduce throw velocity (0.0 - 1.0)
             
             // Track dragging
             let draggedBodyId = null;
             let bodyPositions = {}; // Store positions for manual control
+            let dragStartPosition = null; // Track drag start for velocity
+            let dragPositionHistory = []; // Track recent positions for velocity
 
             // Initialize with two bodies
             world.create_body(1.0, 100, 50);   // Body 0: left side
@@ -119,6 +124,11 @@
             pauseBtn.addEventListener('click', () => {
                 isRunning = !isRunning;
                 pauseBtn.textContent = isRunning ? 'Pause' : 'Resume';
+                // Toggle gravity for all bodies when running
+                const count = world.bodies_count();
+                for (let i = 0; i < count; i++) {
+                    world.set_body_gravity(i, isRunning);
+                }
             });
 
             createBtn.addEventListener('click', () => {
@@ -142,6 +152,10 @@
 
                     if (dist <= CIRCLE_RADIUS) {
                         draggedBodyId = i;
+                        dragStartPosition = { x: x, y: y, time: performance.now() };
+                        dragPositionHistory = [{ x: x, y: y, time: performance.now() }];
+                        // Stop the body from moving while dragging
+                        world.set_body_velocity(i, 0, 0);
                         break;
                     }
                 }
@@ -152,30 +166,65 @@
                     const rect = canvas.getBoundingClientRect();
                     const mouseX = Math.max(CIRCLE_RADIUS, Math.min(canvas.width - CIRCLE_RADIUS, e.clientX - rect.left));
                     const mouseY = Math.max(CIRCLE_RADIUS, Math.min(canvas.height - CIRCLE_RADIUS, e.clientY - rect.top));
+                    
+                    // Track position history for velocity calculation
+                    const now = performance.now();
+                    dragPositionHistory.push({ x: mouseX, y: mouseY, time: now });
+                    
+                    // Keep only last 100ms of history
+                    dragPositionHistory = dragPositionHistory.filter(pos => now - pos.time < 100);
+                    
                     bodyPositions[draggedBodyId] = { x: mouseX, y: mouseY };
+                    // Update the position in the Rust world too
+                    world.set_body_position(draggedBodyId, mouseX, mouseY);
                 }
             });
 
             canvas.addEventListener('mouseup', () => {
+                if (draggedBodyId !== null && dragPositionHistory.length > 1) {
+                    // Calculate velocity from position history
+                    const currentPos = dragPositionHistory[dragPositionHistory.length - 1];
+                    const oldPos = dragPositionHistory[0];
+                    const dt = Math.max(0.016, (currentPos.time - oldPos.time) / 1000);
+                    const vx = (currentPos.x - oldPos.x) / dt * THROW_DAMPING;
+                    const vy = (currentPos.y - oldPos.y) / dt * THROW_DAMPING;
+                    console.log(`Release: velocity = (${vx.toFixed(2)}, ${vy.toFixed(2)}), dt=${dt.toFixed(3)}, distance=${Math.sqrt(vx*vx + vy*vy).toFixed(2)}`);
+                    world.set_body_velocity(draggedBodyId, vx, vy);
+                    // Clear the manual position so the body uses Rust physics
+                    delete bodyPositions[draggedBodyId];
+                }
                 draggedBodyId = null;
+                dragPositionHistory = [];
             });
 
             canvas.addEventListener('mouseleave', () => {
+                if (draggedBodyId !== null && dragPositionHistory.length > 1) {
+                    // Calculate velocity from position history
+                    const currentPos = dragPositionHistory[dragPositionHistory.length - 1];
+                    const oldPos = dragPositionHistory[0];
+                    const dt = Math.max(0.016, (currentPos.time - oldPos.time) / 1000);
+                    const vx = (currentPos.x - oldPos.x) / dt * THROW_DAMPING;
+                    const vy = (currentPos.y - oldPos.y) / dt * THROW_DAMPING;
+                    world.set_body_velocity(draggedBodyId, vx, vy);
+                    // Clear the manual position so the body uses Rust physics
+                    delete bodyPositions[draggedBodyId];
+                }
                 draggedBodyId = null;
+                dragPositionHistory = [];
             });
 
             function draw() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
-                if (isRunning) {
-                    world.step(1 / 60);
-                }
+                // Always run physics step (includes integration and collision resolution)
+                world.step(1 / 60);
 
                 const bodyCount = world.bodies_count();
                 bodyCountEl.textContent = bodyCount;
 
                 // Draw bodies
                 let hasCollision = false;
+                let collisionInfo = [];
                 
                 for (let i = 0; i < bodyCount; i++) {
                     // Use manually set position if available, otherwise use world position
@@ -184,17 +233,46 @@
                     
                     let isColliding = false;
 
-                    // Check collisions with other bodies
+                    // Check collisions with other bodies using WASM collision detection
                     for (let j = i + 1; j < bodyCount; j++) {
-                        const otherX = bodyPositions[j]?.x || world.get_body_position_x(j);
-                        const otherY = bodyPositions[j]?.y || world.get_body_position_y(j);
-                        const dx = otherX - x;
-                        const dy = otherY - y;
-                        const dist = Math.sqrt(dx * dx + dy * dy);
-                        
-                        if (dist <= CIRCLE_RADIUS * 2) {
+                        if (world.collides(i, j)) {
                             isColliding = true;
                             hasCollision = true;
+                            
+                            // Get collision details from Rust
+                            const penetration = world.get_collision_penetration(i, j);
+                            const normalX = world.get_collision_normal_x(i, j);
+                            const normalY = world.get_collision_normal_y(i, j);
+                            
+                            collisionInfo.push(`B${i}-B${j}: pen=${penetration.toFixed(2)}, n=(${normalX.toFixed(2)}, ${normalY.toFixed(2)})`);
+                            
+                            // Draw collision normal vector
+                            const otherX = bodyPositions[j]?.x || world.get_body_position_x(j);
+                            const otherY = bodyPositions[j]?.y || world.get_body_position_y(j);
+                            const midX = (x + otherX) / 2;
+                            const midY = (y + otherY) / 2;
+                            
+                            ctx.strokeStyle = '#ff6b6b';
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            ctx.moveTo(midX, midY);
+                            ctx.lineTo(midX + normalX * 30, midY + normalY * 30);
+                            ctx.stroke();
+                            
+                            // Draw arrow head
+                            const angle = Math.atan2(normalY, normalX);
+                            ctx.beginPath();
+                            ctx.moveTo(midX + normalX * 30, midY + normalY * 30);
+                            ctx.lineTo(
+                                midX + normalX * 30 - 8 * Math.cos(angle - Math.PI / 6),
+                                midY + normalY * 30 - 8 * Math.sin(angle - Math.PI / 6)
+                            );
+                            ctx.moveTo(midX + normalX * 30, midY + normalY * 30);
+                            ctx.lineTo(
+                                midX + normalX * 30 - 8 * Math.cos(angle + Math.PI / 6),
+                                midY + normalY * 30 - 8 * Math.sin(angle + Math.PI / 6)
+                            );
+                            ctx.stroke();
                         }
                     }
 
@@ -220,9 +298,11 @@
                 if (hasCollision) {
                     collisionStatusEl.textContent = 'Collision Detected!';
                     collisionStatusEl.className = 'collision-status';
+                    collisionDetailsEl.textContent = collisionInfo.join(' | ');
                 } else {
                     collisionStatusEl.textContent = 'No collisions';
                     collisionStatusEl.className = 'no-collision';
+                    collisionDetailsEl.textContent = '-';
                 }
 
                 // Update FPS

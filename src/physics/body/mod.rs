@@ -13,6 +13,7 @@ pub struct Body {
 
     pub shape: Shape,
     pub gravity_enabled: bool,
+    pub restitution: f32,
 }
 
 impl Body {
@@ -29,6 +30,7 @@ impl Body {
             force: Vec2::new(0.0, 0.0),
             shape,
             gravity_enabled: false,
+            restitution: 0.5, // Default medium bounce
         }
     }
 
@@ -38,6 +40,17 @@ impl Body {
 
     pub fn set_gravity_enabled(&mut self, enabled: bool) {
         self.gravity_enabled = enabled;
+    }
+
+    pub fn set_restitution(&mut self, restitution: f32) {
+        self.restitution = restitution.clamp(0.0, 1.0);
+    }
+
+    pub fn apply_impulse(&mut self, impulse: Vec2) {
+        if self.inv_mass == 0.0 {
+            return;
+        }
+        self.velocity = self.velocity + impulse * self.inv_mass;
     }
 
     pub fn integrate(&mut self, dt: f32) {
