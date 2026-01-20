@@ -51,7 +51,7 @@
 
 
             let world = new World();
-            let bodyIndex = world.create_body(1.0, 400.0, 50.0); 
+            let bodyIndex = world.create_circle(1.0, 400.0, 50.0, 20.0); 
             let gravityEnabled = false; 
 
 
@@ -110,7 +110,7 @@
             // Event listeners
             resetBtn.addEventListener('click', () => {
                 world = new World();
-                bodyIndex = world.create_body(1.0, 400.0, 50.0);
+                bodyIndex = world.create_circle(1.0, 400.0, 50.0, 20.0);
                 lastTime = performance.now();
                 status.textContent = 'Running';
                 isRunning = true;

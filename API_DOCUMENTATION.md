@@ -71,12 +71,12 @@ const world = new World();
 
 ### Creating Bodies
 
-#### `create_body(mass, x, y)`
+#### `create_circle(mass, x, y)`
 
 Creates a circular body (sphere/ball).
 
 ```javascript
-const bodyIndex = world.create_body(mass, x, y);
+const bodyIndex = world.create_circle(mass, x, y);
 ```
 
 **Parameters:**
@@ -94,10 +94,10 @@ const bodyIndex = world.create_body(mass, x, y);
 **Example:**
 ```javascript
 // Create a dynamic ball
-const ball = world.create_body(1.0, 400, 100);
+const ball = world.create_circle(1.0, 400, 100);
 
 // Create a static (immovable) object
-const staticBody = world.create_body(0, 300, 500);
+const staticBody = world.create_circle(0, 300, 500);
 ```
 
 ---
@@ -522,7 +522,7 @@ async function main() {
     const rightWall = world.create_box(0, 775, 300, 50, 600);
     
     // Create a bouncy ball
-    const ball = world.create_body(1.0, 400, 100);
+    const ball = world.create_circle(1.0, 400, 100);
     world.set_body_restitution(ball, 0.9);
     world.set_body_velocity(ball, 100, 0);
     
@@ -600,7 +600,7 @@ canvas.addEventListener('click', (e) => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
-    const ball = world.create_body(1.0, x, y);
+    const ball = world.create_circle(1.0, x, y);
     world.set_body_restitution(ball, 0.8);
 });
 ```
@@ -673,7 +673,7 @@ The WASM module includes TypeScript definitions:
 import init, { World } from './pkg/wasm_engine.js';
 
 const world: World = new World();
-const ball: number = world.create_body(1.0, 400, 300);
+const ball: number = world.create_circle(1.0, 400, 300);
 ```
 
 ---

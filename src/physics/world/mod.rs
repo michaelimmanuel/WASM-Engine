@@ -19,9 +19,9 @@ impl World {
     }
 
     #[wasm_bindgen]
-    pub fn create_body(&mut self, mass: f32, x: f32, y: f32) -> usize {
+    pub fn create_circle(&mut self, mass: f32, x: f32, y: f32, radius: f32) -> usize {
         let position = Vec2::new(x, y);
-        let shape = Shape::Circle { radius: 20.0 }; // Match visual radius
+        let shape = Shape::Circle { radius };
         let body = Body::new(mass, position, shape);
         let index = self.bodies.len();
         self.bodies.push(body);

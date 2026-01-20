@@ -106,15 +106,15 @@
             let dragPositionHistory = []; // Track recent positions for velocity
 
             // Initialize with two bodies
-            world.create_body(1.0, 100, 50);   // Body 0: left side
-            world.create_body(1.0, 700, 50);   // Body 1: right side
+            world.create_circle(1.0, 100, 50, 20.0);   // Body 0: left side
+            world.create_circle(1.0, 700, 50, 20.0);   // Body 1: right side
             bodyPositions[0] = { x: 100, y: 50 };
             bodyPositions[1] = { x: 700, y: 50 };
 
             resetBtn.addEventListener('click', () => {
                 world = new World();
-                world.create_body(1.0, 100, 50);
-                world.create_body(1.0, 700, 50);
+                world.create_circle(1.0, 100, 50, 20.0);
+                world.create_circle(1.0, 700, 50, 20.0);
                 bodyPositions = { 0: { x: 100, y: 50 }, 1: { x: 700, y: 50 } };
                 draggedBodyId = null;
                 isRunning = false;
@@ -132,7 +132,7 @@
             });
 
             createBtn.addEventListener('click', () => {
-                world.create_body(1.0, 400, 20);
+                world.create_circle(1.0, 400, 20, 20.0);
             });
 
             // Mouse events for dragging bodies

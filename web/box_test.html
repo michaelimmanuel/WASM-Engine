@@ -141,7 +141,7 @@
                 const mouseY = e.clientY - rect.top;
                 
                 if (createCircle) {
-                    const circle = world.create_body(1.0, mouseX, mouseY);
+                    const circle = world.create_circle(1.0, mouseX, mouseY, 20.0);
                     world.set_body_gravity(circle, true);
                     world.set_body_restitution(circle, 0.6);
                 } else {
