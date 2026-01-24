@@ -27,13 +27,26 @@ pub fn overlaps(a: &Body, b: &Body) -> bool {
             circle_vs_circle(a.position, *r1, b.position, *r2)
         }
         (Shape::Box { width: w1, height: h1 }, Shape::Box { width: w2, height: h2 }) => {
-            aabb_vs_aabb(a.position, *w1, *h1, b.position, *w2, *h2)
+            // Use OBB collision if either box is rotated
+            if a.rotation != 0.0 || b.rotation != 0.0 {
+                obb_vs_obb(a.position, *w1, *h1, a.rotation, b.position, *w2, *h2, b.rotation)
+            } else {
+                aabb_vs_aabb(a.position, *w1, *h1, b.position, *w2, *h2)
+            }
         }
         (Shape::Circle { radius }, Shape::Box { width, height }) => {
-            circle_vs_aabb(a.position, *radius, b.position, *width, *height)
+            if b.rotation != 0.0 {
+                circle_vs_obb(a.position, *radius, b.position, *width, *height, b.rotation)
+            } else {
+                circle_vs_aabb(a.position, *radius, b.position, *width, *height)
+            }
         }
         (Shape::Box { width, height }, Shape::Circle { radius }) => {
-            circle_vs_aabb(b.position, *radius, a.position, *width, *height)
+            if a.rotation != 0.0 {
+                circle_vs_obb(b.position, *radius, a.position, *width, *height, a.rotation)
+            } else {
+                circle_vs_aabb(b.position, *radius, a.position, *width, *height)
+            }
         }
     }
 }
@@ -44,24 +57,43 @@ pub fn detect_collision(a: &Body, b: &Body, index_a: usize, index_b: usize) -> O
             circle_collision(a.position, *r1, b.position, *r2, index_a, index_b)
         }
         (Shape::Box { width: w1, height: h1 }, Shape::Box { width: w2, height: h2 }) => {
-            aabb_collision(a.position, *w1, *h1, b.position, *w2, *h2, index_a, index_b)
+            // Use OBB collision if either box is rotated
+            if a.rotation != 0.0 || b.rotation != 0.0 {
+                obb_collision(a.position, *w1, *h1, a.rotation, b.position, *w2, *h2, b.rotation, index_a, index_b)
+            } else {
+                aabb_collision(a.position, *w1, *h1, b.position, *w2, *h2, index_a, index_b)
+            }
         }
         (Shape::Circle { radius }, Shape::Box { width, height }) => {
-            circle_aabb_collision(a.position, *radius, b.position, *width, *height, index_a, index_b)
+            if b.rotation != 0.0 {
+                circle_obb_collision(a.position, *radius, b.position, *width, *height, b.rotation, index_a, index_b)
+            } else {
+                circle_aabb_collision(a.position, *radius, b.position, *width, *height, index_a, index_b)
+            }
         }
         (Shape::Box { width, height }, Shape::Circle { radius }) => {
             // Box is A, Circle is B
-            // Call with circle and box, then flip the normal since it returns circle->box normal
-            circle_aabb_collision(b.position, *radius, a.position, *width, *height, index_b, index_a)
-                .map(|contact| {
-                    // Flip normal to point from box(A) to circle(B)
-                    Contact::new(
-                        contact.normal * -1.0,
-                        contact.penetration,
-                        index_a,  // Box is body A
-                        index_b   // Circle is body B
-                    )
-                })
+            if a.rotation != 0.0 {
+                circle_obb_collision(b.position, *radius, a.position, *width, *height, a.rotation, index_b, index_a)
+                    .map(|contact| {
+                        Contact::new(
+                            contact.normal * -1.0,
+                            contact.penetration,
+                            index_a,
+                            index_b
+                        )
+                    })
+            } else {
+                circle_aabb_collision(b.position, *radius, a.position, *width, *height, index_b, index_a)
+                    .map(|contact| {
+                        Contact::new(
+                            contact.normal * -1.0,
+                            contact.penetration,
+                            index_a,
+                            index_b
+                        )
+                    })
+            }
         }
     }
 }
@@ -140,6 +172,98 @@ fn aabb_collision(pa: Vec2, w1: f32, h1: f32, pb: Vec2, w2: f32, h2: f32,
     };
     
     Some(Contact::new(normal, penetration, index_a, index_b))
+}
+
+// OBB vs OBB collision detection using Separating Axis Theorem (SAT)
+fn obb_vs_obb(pa: Vec2, w1: f32, h1: f32, rot1: f32, 
+              pb: Vec2, w2: f32, h2: f32, rot2: f32) -> bool {
+    // Get the axes for both boxes
+    let axes_a = get_obb_axes(rot1);
+    let axes_b = get_obb_axes(rot2);
+    
+    // Test all 4 potential separating axes (2 per box)
+    for axis in &[axes_a[0], axes_a[1], axes_b[0], axes_b[1]] {
+        let (min_a, max_a) = project_obb(*axis, pa, w1, h1, rot1);
+        let (min_b, max_b) = project_obb(*axis, pb, w2, h2, rot2);
+        
+        // Check for gap on this axis
+        if max_a < min_b || max_b < min_a {
+            return false; // Found separating axis - no collision
+        }
+    }
+    
+    true // No separating axis found - collision detected
+}
+
+fn obb_collision(pa: Vec2, w1: f32, h1: f32, rot1: f32,
+                 pb: Vec2, w2: f32, h2: f32, rot2: f32,
+                 index_a: usize, index_b: usize) -> Option<Contact> {
+    // Get the axes for both boxes
+    let axes_a = get_obb_axes(rot1);
+    let axes_b = get_obb_axes(rot2);
+    
+    let mut min_overlap = f32::MAX;
+    let mut collision_normal = Vec2::new(1.0, 0.0);
+    
+    // Test all 4 potential separating axes
+    for axis in &[axes_a[0], axes_a[1], axes_b[0], axes_b[1]] {
+        let (min_a, max_a) = project_obb(*axis, pa, w1, h1, rot1);
+        let (min_b, max_b) = project_obb(*axis, pb, w2, h2, rot2);
+        
+        // Check for gap on this axis
+        if max_a < min_b || max_b < min_a {
+            return None; // Found separating axis - no collision
+        }
+        
+        // Calculate overlap on this axis
+        let overlap = (max_a.min(max_b) - min_a.max(min_b)).abs();
+        
+        if overlap < min_overlap {
+            min_overlap = overlap;
+            collision_normal = *axis;
+            
+            // Ensure normal points from A to B
+            let delta = pb - pa;
+            if delta.dot(*axis) < 0.0 {
+                collision_normal = *axis * -1.0;
+            }
+        }
+    }
+    
+    Some(Contact::new(collision_normal, min_overlap, index_a, index_b))
+}
+
+/// Get the two axes (normals) for an OBB based on its rotation
+fn get_obb_axes(rotation: f32) -> [Vec2; 2] {
+    let cos = rotation.cos();
+    let sin = rotation.sin();
+    [
+        Vec2::new(cos, sin),           // X-axis of the rotated box
+        Vec2::new(-sin, cos),          // Y-axis of the rotated box
+    ]
+}
+
+/// Project an OBB onto an axis and return the min/max scalar values
+fn project_obb(axis: Vec2, center: Vec2, width: f32, height: f32, rotation: f32) -> (f32, f32) {
+    // Get the corner offsets in local space
+    let half_w = width * 0.5;
+    let half_h = height * 0.5;
+    
+    // Get the rotated axes of the box
+    let cos = rotation.cos();
+    let sin = rotation.sin();
+    let x_axis = Vec2::new(cos, sin);
+    let y_axis = Vec2::new(-sin, cos);
+    
+    // Project the half-extents onto the test axis
+    let proj_w = (x_axis.dot(axis) * half_w).abs();
+    let proj_h = (y_axis.dot(axis) * half_h).abs();
+    let radius = proj_w + proj_h;
+    
+    // Project center onto axis
+    let center_proj = center.dot(axis);
+    
+    (center_proj - radius, center_proj + radius)
 }
 
 // Circle vs AABB collision detection
@@ -226,6 +350,106 @@ fn circle_aabb_collision(pc: Vec2, radius: f32, pb: Vec2, width: f32, height: f3
     };
     
     Some(Contact::new(normal, penetration, circle_index, box_index))
+}
+
+// Circle vs OBB (Oriented Bounding Box) collision detection
+fn circle_vs_obb(pc: Vec2, radius: f32, pb: Vec2, width: f32, height: f32, rotation: f32) -> bool {
+    // Transform circle center to box's local space
+    let delta = pc - pb;
+    let local_circle = Vec2::new(
+        delta.dot(Vec2::new(rotation.cos(), rotation.sin())),
+        delta.dot(Vec2::new(-rotation.sin(), rotation.cos()))
+    );
+    
+    // Now we have an AABB vs circle test in local space
+    let half_w = width * 0.5;
+    let half_h = height * 0.5;
+    
+    let closest_x = local_circle.x.clamp(-half_w, half_w);
+    let closest_y = local_circle.y.clamp(-half_h, half_h);
+    
+    let dx = local_circle.x - closest_x;
+    let dy = local_circle.y - closest_y;
+    let dist_sq = dx * dx + dy * dy;
+    
+    dist_sq <= radius * radius
+}
+
+fn circle_obb_collision(pc: Vec2, radius: f32, pb: Vec2, width: f32, height: f32, rotation: f32,
+                        circle_index: usize, box_index: usize) -> Option<Contact> {
+    // Transform circle center to box's local space
+    let delta = pc - pb;
+    let cos = rotation.cos();
+    let sin = rotation.sin();
+    
+    let local_circle = Vec2::new(
+        delta.dot(Vec2::new(cos, sin)),
+        delta.dot(Vec2::new(-sin, cos))
+    );
+    
+    let half_w = width * 0.5;
+    let half_h = height * 0.5;
+    
+    // Find closest point on box (in local space)
+    let closest_x = local_circle.x.clamp(-half_w, half_w);
+    let closest_y = local_circle.y.clamp(-half_h, half_h);
+    let local_closest = Vec2::new(closest_x, closest_y);
+    
+    let local_delta = local_closest - local_circle;
+    let dist_sq = local_delta.x * local_delta.x + local_delta.y * local_delta.y;
+    
+    if dist_sq > radius * radius {
+        return None;
+    }
+    
+    let dist = dist_sq.sqrt();
+    
+    // Check if circle center is inside the box
+    let inside_box = local_circle.x >= -half_w && local_circle.x <= half_w &&
+                     local_circle.y >= -half_h && local_circle.y <= half_h;
+    
+    let (local_normal, penetration) = if inside_box {
+        // Circle center is inside - find closest edge
+        let dx_right = half_w - local_circle.x;
+        let dx_left = local_circle.x + half_w;
+        let dy_down = half_h - local_circle.y;
+        let dy_up = local_circle.y + half_h;
+        
+        let min_dist = dx_right.min(dx_left).min(dy_down).min(dy_up);
+        
+        let local_normal = if min_dist == dx_right {
+            Vec2::new(1.0, 0.0)
+        } else if min_dist == dx_left {
+            Vec2::new(-1.0, 0.0)
+        } else if min_dist == dy_down {
+            Vec2::new(0.0, 1.0)
+        } else {
+            Vec2::new(0.0, -1.0)
+        };
+        
+        (local_normal, radius + min_dist)
+    } else {
+        // Circle center is outside
+        if dist > 0.0001 {
+            (local_delta.normalize(), radius - dist)
+        } else {
+            // Edge case: circle exactly on box edge
+            let local_normal = if local_circle.x.abs() > local_circle.y.abs() {
+                if local_circle.x > 0.0 { Vec2::new(-1.0, 0.0) } else { Vec2::new(1.0, 0.0) }
+            } else {
+                if local_circle.y > 0.0 { Vec2::new(0.0, -1.0) } else { Vec2::new(0.0, 1.0) }
+            };
+            (local_normal, radius)
+        }
+    };
+    
+    // Transform normal back to world space
+    let world_normal = Vec2::new(
+        local_normal.x * cos - local_normal.y * sin,
+        local_normal.x * sin + local_normal.y * cos
+    );
+    
+    Some(Contact::new(world_normal, penetration, circle_index, box_index))
 }
 
 pub fn resolve_collision(a: &mut Body, b: &mut Body, contact: &Contact) {

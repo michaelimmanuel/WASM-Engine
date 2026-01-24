@@ -221,6 +221,18 @@ impl World {
     pub fn is_body_static(&self, index: usize) -> bool {
         self.bodies.get(index).map(|body| body.inv_mass == 0.0).unwrap_or(false)
     }
+
+    #[wasm_bindgen]
+    pub fn get_body_rotation(&self, index: usize) -> f32 {
+        self.bodies.get(index).map(|body| body.rotation).unwrap_or(0.0)
+    }
+
+    #[wasm_bindgen]
+    pub fn set_body_rotation(&mut self, index: usize, rotation: f32) {
+        if let Some(body) = self.bodies.get_mut(index) {
+            body.rotation = rotation;
+        }
+    }
 }
 
 #[cfg(test)]

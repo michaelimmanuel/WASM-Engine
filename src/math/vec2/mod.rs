@@ -64,6 +64,21 @@ impl Vec2 {
     pub fn is_zero(self) -> bool {
         self.x == 0.0 && self.y == 0.0
     }
+
+    #[inline]
+    pub fn rotate(self, angle: f32) -> Vec2 {
+        let cos = angle.cos();
+        let sin = angle.sin();
+        Vec2::new(
+            self.x * cos - self.y * sin,
+            self.x * sin + self.y * cos
+        )
+    }
+
+    #[inline]
+    pub fn perpendicular(self) -> Vec2 {
+        Vec2::new(-self.y, self.x)
+    }
 }
 
 impl Add for Vec2 {

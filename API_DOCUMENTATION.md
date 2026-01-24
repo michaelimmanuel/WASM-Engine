@@ -213,6 +213,53 @@ world.set_body_position(bodyIndex, x, y);
 
 ---
 
+#### `get_body_rotation(index)`
+
+Gets the rotation angle of a body.
+
+```javascript
+const rotation = world.get_body_rotation(bodyIndex);
+```
+
+**Parameters:**
+- `index: number` - Body index
+
+**Returns:** `number` - Rotation angle in radians (0 = no rotation)
+
+**Note:** Rotation affects collision detection for boxes (uses OBB instead of AABB). Circles are rotationally symmetric.
+
+---
+
+#### `set_body_rotation(index, rotation)`
+
+Sets the rotation angle of a body.
+
+```javascript
+world.set_body_rotation(bodyIndex, rotation);
+```
+
+**Parameters:**
+- `index: number` - Body index
+- `rotation: number` - Rotation angle in radians
+
+**Example:**
+```javascript
+// Rotate box 45 degrees (π/4 radians)
+world.set_body_rotation(box, Math.PI / 4);
+
+// Rotate 90 degrees counter-clockwise
+world.set_body_rotation(box, Math.PI / 2);
+
+// No rotation
+world.set_body_rotation(box, 0);
+```
+
+**Note:** Rotation changes the collision behavior:
+- **Circles:** Visual only, collision detection unchanged
+- **Boxes:** Uses OBB (Oriented Bounding Box) collision detection when rotated
+
+---
+
 #### `set_body_velocity(index, vx, vy)`
 
 Sets the velocity of a body.
@@ -554,7 +601,13 @@ async function main() {
             } else {
                 const w = world.get_body_width(i);
                 const h = world.get_body_height(i);
-                ctx.fillRect(x - w/2, y - h/2, w, h);
+                const rotation = world.get_body_rotation(i);
+                
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(rotation);
+                ctx.fillRect(-w/2, -h/2, w, h);
+                ctx.restore();
             }
         }
         
@@ -633,6 +686,38 @@ function checkCollisions() {
         // Handle collection logic
     }
 }
+```
+
+#### Rotating Boxes
+
+```javascript
+// Create a rotating platform
+const platform = world.create_box(0, 400, 300, 200, 20);
+
+let angle = 0;
+function animate() {
+    // Slowly rotate the platform
+    angle += 0.01;
+    world.set_body_rotation(platform, angle);
+    
+    // Physics and rendering...
+    requestAnimationFrame(animate);
+}
+
+animate();
+```
+
+```javascript
+// Spawn box with random rotation
+canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const box = world.create_box(1.0, x, y, 50, 50);
+    const randomRotation = Math.random() * Math.PI * 2;
+    world.set_body_rotation(box, randomRotation);
+});
 ```
 
 ---
@@ -791,9 +876,13 @@ pub fn overlaps(a: &Body, b: &Body) -> bool
 
 **Supported Shape Combinations:**
 - Circle vs Circle
-- AABB vs AABB
-- Circle vs AABB
-- AABB vs Circle
+- Box vs Box (AABB when not rotated, OBB when rotated)
+- Circle vs Box (handles both AABB and OBB)
+- Box vs Circle (handles both AABB and OBB)
+
+**Collision Detection Modes:**
+- **AABB (Axis-Aligned Bounding Box):** Fast collision for boxes with rotation = 0
+- **OBB (Oriented Bounding Box):** SAT-based collision for rotated boxes (rotation ≠ 0)
 
 **Example:**
 ```rust
@@ -860,14 +949,25 @@ Uses distance comparison:
 - Normal points from circle A center toward circle B center
 - Penetration = `(radius1 + radius2) - distance`
 
-#### AABB vs AABB
+#### AABB vs AABB (Non-Rotated Boxes)
 Uses Separating Axis Theorem (SAT):
 - Tests for overlap on X and Y axes
 - Collision if overlapping on both axes
 - Normal uses axis of least penetration
 - Penetration = minimum overlap amount
 
-#### Circle vs AABB
+#### OBB vs OBB (Rotated Boxes)
+Uses full Separating Axis Theorem (SAT):
+1. Get the two axes (normals) for each box based on rotation
+2. Test all 4 potential separating axes (2 per box)
+3. Project both boxes onto each axis
+4. If any axis shows separation → no collision
+5. Track minimum overlap and corresponding axis
+6. Normal = axis with minimum overlap, pointing from A to B
+
+**Performance:** OBB collision is more expensive than AABB (~2-3x slower) but still very fast.
+
+#### Circle vs AABB (Non-Rotated Box)
 Uses closest point method:
 1. Find closest point on AABB surface to circle center
 2. Calculate distance from circle center to closest point
@@ -875,6 +975,13 @@ Uses closest point method:
 4. Two cases:
    - **Circle outside**: Normal from circle toward closest point
    - **Circle inside**: Normal toward nearest edge
+
+#### Circle vs OBB (Rotated Box)
+Uses local space transformation:
+1. Transform circle center to box's local coordinate space
+2. Perform AABB-circle test in local space
+3. Transform collision normal back to world space
+4. Handles both inside/outside cases correctly
 
 ---
 
@@ -1055,7 +1162,7 @@ This convention must be maintained for correct impulse resolution:
 
 ### Limitations
 
-1. **No Rotation:** Current AABBs cannot rotate (axis-aligned only)
+1. **No Angular Physics:** Bodies can be rotated manually, but no torque or angular velocity simulation yet
 2. **No Continuous Collision:** Fast-moving objects may tunnel through thin obstacles
 3. **No Friction:** Objects slide without resistance
 4. **Sequential Resolution:** Multiple simultaneous contacts may have order-dependent behavior
@@ -1070,12 +1177,17 @@ This convention must be maintained for correct impulse resolution:
 pub struct Body {
     pub position: Vec2,
     pub velocity: Vec2,
+    pub rotation: f32,     // Rotation angle in radians
     pub shape: Shape,
     pub inv_mass: f32,     // 0 = static/infinite mass
     pub restitution: f32,  // 0.0 - 1.0 bounciness
     // ...
 }
 ```
+
+**Rotation Behavior:**
+- **Circles:** Rotation exists but doesn't affect collision detection (rotationally symmetric)
+- **Boxes:** When `rotation ≠ 0`, collision uses OBB (Oriented Bounding Box) instead of AABB
 
 ### `Shape`
 
@@ -1085,6 +1197,8 @@ pub enum Shape {
     Box { width: f32, height: f32 },
 }
 ```
+
+**Note:** Shape dimensions are in local space. For boxes, rotation is handled separately in the `Body` struct.
 
 ### `Vec2`
 

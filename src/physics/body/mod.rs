@@ -10,6 +10,7 @@ pub struct Body {
     pub velocity: Vec2,
     pub position: Vec2,
     pub force: Vec2,
+    pub rotation: f32,  // Rotation angle in radians
 
     pub shape: Shape,
     pub gravity_enabled: bool,
@@ -28,6 +29,7 @@ impl Body {
             velocity: Vec2::new(0.0, 0.0),
             position,
             force: Vec2::new(0.0, 0.0),
+            rotation: 0.0,  // Start with no rotation
             shape,
             gravity_enabled: false,
             restitution: 0.5, // Default medium bounce
