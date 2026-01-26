@@ -6,15 +6,17 @@ use crate::physics::collider::Shape;
 pub struct Contact {
     pub normal: Vec2,
     pub penetration: f32,
+    pub contact_point: Vec2,  
     pub body_a_index: usize,
     pub body_b_index: usize,
 }
 
 impl Contact {
-    pub fn new(normal: Vec2, penetration: f32, body_a_index: usize, body_b_index: usize) -> Self {
+    pub fn new(normal: Vec2, penetration: f32, contact_point: Vec2, body_a_index: usize, body_b_index: usize) -> Self {
         Self {
             normal,
             penetration,
+            contact_point,
             body_a_index,
             body_b_index,
         }
@@ -79,6 +81,7 @@ pub fn detect_collision(a: &Body, b: &Body, index_a: usize, index_b: usize) -> O
                         Contact::new(
                             contact.normal * -1.0,
                             contact.penetration,
+                            contact.contact_point,
                             index_a,
                             index_b
                         )
@@ -89,6 +92,7 @@ pub fn detect_collision(a: &Body, b: &Body, index_a: usize, index_b: usize) -> O
                         Contact::new(
                             contact.normal * -1.0,
                             contact.penetration,
+                            contact.contact_point,
                             index_a,
                             index_b
                         )
@@ -125,7 +129,10 @@ fn circle_collision(pa: Vec2, r1: f32, pb: Vec2, r2: f32, index_a: usize, index_
     
     let penetration = rsum - dist;
     
-    Some(Contact::new(normal, penetration, index_a, index_b))
+    // Contact point is on the surface of circle A, along the collision normal
+    let contact_point = pa + normal * r1;
+    
+    Some(Contact::new(normal, penetration, contact_point, index_a, index_b))
 }
 
 // AABB vs AABB collision detection
@@ -171,7 +178,20 @@ fn aabb_collision(pa: Vec2, w1: f32, h1: f32, pb: Vec2, w2: f32, h2: f32,
         (Vec2::new(0.0, ny), overlap_y)
     };
     
-    Some(Contact::new(normal, penetration, index_a, index_b))
+    // Contact point is at the edge of box A along the collision normal
+    let contact_point = if overlap_x < overlap_y {
+        // X-axis collision - contact on vertical edge of box A
+        let edge_x = pa.x + normal.x * half_w1;
+        let clamped_y = pb.y.clamp(pa.y - half_h1, pa.y + half_h1);
+        Vec2::new(edge_x, clamped_y)
+    } else {
+        // Y-axis collision - contact on horizontal edge of box A
+        let clamped_x = pb.x.clamp(pa.x - half_w1, pa.x + half_w1);
+        let edge_y = pa.y + normal.y * half_h1;
+        Vec2::new(clamped_x, edge_y)
+    };
+    
+    Some(Contact::new(normal, penetration, contact_point, index_a, index_b))
 }
 
 // OBB vs OBB collision detection using Separating Axis Theorem (SAT)
@@ -230,7 +250,33 @@ fn obb_collision(pa: Vec2, w1: f32, h1: f32, rot1: f32,
         }
     }
     
-    Some(Contact::new(collision_normal, min_overlap, index_a, index_b))
+    // Calculate contact point on the surface of box A
+    // Project center of B onto the surface of A along the collision normal
+    let half_w1 = w1 * 0.5;
+    let half_h1 = h1 * 0.5;
+    
+    // Transform B's center to A's local space
+    let cos1 = rot1.cos();
+    let sin1 = rot1.sin();
+    let delta = pb - pa;
+    let local_b = Vec2::new(
+        delta.x * cos1 + delta.y * sin1,
+        -delta.x * sin1 + delta.y * cos1
+    );
+    
+    // Clamp to box A's bounds
+    let clamped_local = Vec2::new(
+        local_b.x.clamp(-half_w1, half_w1),
+        local_b.y.clamp(-half_h1, half_h1)
+    );
+    
+    // Transform back to world space
+    let contact_point = Vec2::new(
+        clamped_local.x * cos1 - clamped_local.y * sin1 + pa.x,
+        clamped_local.x * sin1 + clamped_local.y * cos1 + pa.y
+    );
+    
+    Some(Contact::new(collision_normal, min_overlap, contact_point, index_a, index_b))
 }
 
 /// Get the two axes (normals) for an OBB based on its rotation
@@ -349,7 +395,10 @@ fn circle_aabb_collision(pc: Vec2, radius: f32, pb: Vec2, width: f32, height: f3
         }
     };
     
-    Some(Contact::new(normal, penetration, circle_index, box_index))
+    // Contact point is the closest point on the box surface
+    let contact_point = Vec2::new(closest_x, closest_y);
+    
+    Some(Contact::new(normal, penetration, contact_point, circle_index, box_index))
 }
 
 // Circle vs OBB (Oriented Bounding Box) collision detection
@@ -449,7 +498,13 @@ fn circle_obb_collision(pc: Vec2, radius: f32, pb: Vec2, width: f32, height: f32
         local_normal.x * sin + local_normal.y * cos
     );
     
-    Some(Contact::new(world_normal, penetration, circle_index, box_index))
+    // Transform contact point back to world space
+    let world_contact = Vec2::new(
+        local_closest.x * cos - local_closest.y * sin + pb.x,
+        local_closest.x * sin + local_closest.y * cos + pb.y
+    );
+    
+    Some(Contact::new(world_normal, penetration, world_contact, circle_index, box_index))
 }
 
 pub fn resolve_collision(a: &mut Body, b: &mut Body, contact: &Contact) {
@@ -458,30 +513,64 @@ pub fn resolve_collision(a: &mut Body, b: &mut Body, contact: &Contact) {
         return;
     }
 
-    let rel_velocity = b.velocity - a.velocity;
+    // Calculate relative velocity at the contact point (includes angular component)
+    let ra = contact.contact_point - a.position;
+    let rb = contact.contact_point - b.position;
+    
+    // Velocity at contact point = linear_velocity + angular_velocity × r
+    // In 2D: v = v_linear + ω × r, where ω × r = ω * perpendicular(r)
+    let va = a.velocity + ra.perpendicular() * a.angular_velocity;
+    let vb = b.velocity + rb.perpendicular() * b.angular_velocity;
+    
+    let rel_velocity = vb - va;
     let vel_along_normal = rel_velocity.dot(contact.normal);
     
+    // Don't resolve if objects are separating
     if vel_along_normal > 0.0 {
         return;
     }
     
     let restitution = (a.restitution + b.restitution) * 0.5;
     
-    let impulse_scalar = -(1.0 + restitution) * vel_along_normal / (a.inv_mass + b.inv_mass);
+    // Calculate impulse magnitude with angular component
+    // j = -(1 + e) * v_rel • n / (1/m_a + 1/m_b + (r_a × n)² / I_a + (r_b × n)² / I_b)
+    let ra_cross_n = ra.cross(contact.normal);
+    let rb_cross_n = rb.cross(contact.normal);
     
+    let inv_mass_sum = a.inv_mass + b.inv_mass;
+    let angular_factor = ra_cross_n * ra_cross_n * a.inv_moment_of_inertia +
+                         rb_cross_n * rb_cross_n * b.inv_moment_of_inertia;
+    
+    let impulse_scalar = -(1.0 + restitution) * vel_along_normal / (inv_mass_sum + angular_factor);
     let impulse = contact.normal * impulse_scalar;
-    a.apply_impulse(impulse * -1.0);
-    b.apply_impulse(impulse);
     
-
-    const PERCENT: f32 = 0.8; 
-    const SLOP: f32 = 0.005; 
+    // Apply impulses at contact points (generates both linear and angular motion)
+    a.apply_impulse_at_point(impulse * -1.0, contact.contact_point);
+    b.apply_impulse_at_point(impulse, contact.contact_point);
+    
+    // Dampen angular velocity on collision to improve stability
+    // This prevents extreme spinning that can cause tunneling
+    const ANGULAR_DAMPING: f32 = 0.9;
+    a.angular_velocity *= ANGULAR_DAMPING;
+    b.angular_velocity *= ANGULAR_DAMPING;
+    
+    // Positional correction (to prevent sinking)
+    // Increased correction for better stability with rotation
+    const PERCENT: f32 = 1.0;  // Full correction
+    const SLOP: f32 = 0.01;    // Small tolerance
     
     let correction_magnitude = (contact.penetration - SLOP).max(0.0) / (a.inv_mass + b.inv_mass) * PERCENT;
     let correction = contact.normal * correction_magnitude;
     
     a.position = a.position - correction * a.inv_mass;
     b.position = b.position + correction * b.inv_mass;
+    
+    // If one body is static (wall), ensure dynamic body is fully pushed out
+    if a.inv_mass == 0.0 && contact.penetration > SLOP {
+        b.position = b.position + contact.normal * contact.penetration;
+    } else if b.inv_mass == 0.0 && contact.penetration > SLOP {
+        a.position = a.position - contact.normal * contact.penetration;
+    }
 }
 
 #[cfg(test)]

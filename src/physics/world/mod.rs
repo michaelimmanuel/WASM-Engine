@@ -64,7 +64,8 @@ impl World {
         }
 
         // Resolve collisions multiple times to prevent clipping
-        for _ in 0..4 {
+        // Increased iterations for better stability with rotation
+        for _ in 0..8 {
             self.resolve_collisions();
         }
     }
@@ -232,6 +233,30 @@ impl World {
         if let Some(body) = self.bodies.get_mut(index) {
             body.rotation = rotation;
         }
+    }
+
+    #[wasm_bindgen]
+    pub fn get_body_angular_velocity(&self, index: usize) -> f32 {
+        self.bodies.get(index).map(|body| body.angular_velocity).unwrap_or(0.0)
+    }
+
+    #[wasm_bindgen]
+    pub fn set_body_angular_velocity(&mut self, index: usize, angular_velocity: f32) {
+        if let Some(body) = self.bodies.get_mut(index) {
+            body.angular_velocity = angular_velocity;
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn apply_body_torque(&mut self, index: usize, torque: f32) {
+        if let Some(body) = self.bodies.get_mut(index) {
+            body.apply_torque(torque);
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn get_body_moment_of_inertia(&self, index: usize) -> f32 {
+        self.bodies.get(index).map(|body| body.moment_of_inertia).unwrap_or(0.0)
     }
 }
 
